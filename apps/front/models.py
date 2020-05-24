@@ -11,3 +11,6 @@ class Data(models.Model):
     jidu_3 = models.FloatField(default=0)
     jidu_4 = models.FloatField(default=0)
     add_time = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-add_time"]

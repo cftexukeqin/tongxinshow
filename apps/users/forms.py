@@ -63,4 +63,4 @@ class UserInfoForm(forms.ModelForm):
     '''个人中心信息修改'''
     class Meta:
         model = User
-        fields = ['birthday','email','nick_name','mobile']
+        fields = ['birthday','email','nick_name','mobile','gender']

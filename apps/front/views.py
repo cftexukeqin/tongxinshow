@@ -6,10 +6,13 @@ from django.http import HttpResponse
 from django.db.models import Q, F
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
+from django.views.decorators.http import require_POST,require_GET
+from django.views.generic import View
 
 from apps.utils.pyecharts_restful import JsonResponse
 import db_tools.data.show_data as s_data
 from apps.utils import restful
+from apps.utils.db_read import read_query
 
 import json
 from rest_framework.views import APIView
@@ -23,9 +26,18 @@ from pyecharts.commons.utils import JsCode
 def index(request):
     all_datas = Data.objects.all()
     page = request.GET.get('page', 1)
+    p = Paginator(all_datas, 8, request=request)
 
-    p = Paginator(all_datas, 4, request=request)
-    datas = p.page(page)
+
+    try:
+        datas = p.page(page)
+    except PageNotAnInteger:
+        # 捕获到页码不是整数，返回第一页
+        datas = p.page(1)
+    except EmptyPage:
+        # 页码超出范围，返回最后一页
+        datas = p.page(p.num_pages)
+
     context = {
         'datas':datas
     }
@@ -34,10 +46,23 @@ def index(request):
 
 def search(request):
     year = request.GET.get('year')
-    print(year)
-    datas = Data.objects.filter(year=year).all()
+    words = request.GET.get("words")
+    if year!= "0000":
+        if words and words!='None':
+            all_datas = Data.objects.filter(year=year,name__icontains=words).all()
+        else:
+            all_datas = Data.objects.filter(year=year).all()
+    else:
+        all_datas = Data.objects.filter(name__icontains=words).all()
+
+    page = request.GET.get('page', 1)
+
+    p = Paginator(all_datas, 8, request=request)
+    datas = p.page(page)
     context = {
-        'datas': datas,
+        'datas':datas,
+        'words':words,
+        'r_year':year
     }
     return render(request, 'front/index.html', context=context)
 
@@ -46,7 +71,7 @@ def document_list(request):
     datas = Data.objects.all()
     page = request.GET.get('page', 1)
 
-    p = Paginator(datas, 4, request=request)
+    p = Paginator(datas, 8, request=request)
     documents = p.page(page)
     context = {
         'documents': documents,
@@ -56,74 +81,85 @@ def document_list(request):
 
 
 def author_bar() -> Bar:
-    x = list(s_data.authors.values())
-    y = list(s_data.author_nums.values())
+    df = read_query()
+    name_list = list(df.name.unique())
+ #    name_list = ['移动用户数（百万户）','手机上网总流量（kTB）' ,'移动语音通话总分钟数（百万分钟）', '有线宽带用户数（百万户）',
+ # '固定电话用户数（百万户）' ,'固定电话本地语音通话总次数（百万次）' ,'固定电话长途总分钟数（百万分钟）', '经营收入（人民币百万元）',
+ # 'test3']
+    # jidu1 = df[df['year'] == 2018]['jidu_1']
+    title = name_list[0]
+    data_2018 = Data.objects.filter(year="2018",name=name_list[0]).first()
+    data_2019 = Data.objects.filter(year="2019",name=name_list[0]).first()
+    data_2020 = Data.objects.filter(year="2020",name=name_list[0]).first()
+    print(name_list[0])
+    x = [2018,2019,2020]
+
+    y1 = [data_2018.jidu_1,data_2019.jidu_1,data_2020.jidu_1]
+    y2 = [data_2018.jidu_2,data_2019.jidu_2,data_2020.jidu_2]
+    y3 = [data_2018.jidu_3,data_2019.jidu_3,data_2020.jidu_3]
+    y4 = [data_2018.jidu_4,data_2019.jidu_4,data_2020.jidu_4]
+
+
+
     c = (
         Bar()
             .add_xaxis(x)
-            .add_yaxis("作者", y)
-            .set_global_opts(title_opts=opts.TitleOpts(title="作者数量", subtitle="相关文章数量"))
+            .add_yaxis("第一季度", y1)
+            .add_yaxis("第二季度", y2)
+            .add_yaxis("第三季度", y3)
+            .add_yaxis("第四季度", y4)
+            .set_global_opts(
+            title_opts=opts.TitleOpts(title=title),
+            legend_opts=opts.LegendOpts(type_="scroll", pos_right="30px", orient="vertical"),
+        )
             .dump_options_with_quotes()
     )
     return c
 
 
 def orginize_bar() -> Bar:
-    o_x = list(s_data.orginations.values())
-    o_y = list(s_data.orginations_nums.values())
-    c = (
-        Bar()
-            .add_xaxis(o_x)
-            .add_yaxis("机构", o_y, category_gap="60%")
-            .set_series_opts(
-            itemstyle_opts={
-                "normal": {
-                    "color": JsCode(
-                        """new echarts.graphic.LinearGradient(0, 0, 0, 1, [{
-                    offset: 0,
-                    color: 'rgba(0, 122, 255, 1)'
-                }, {
-                    offset: 1,
-                    color: 'rgba(0, 77, 167, 1)'
-                }], false)"""
-                    ),
-                    "barBorderRadius": [30, 30, 30, 30],
-                    "shadowColor": "rgb(0, 160, 221)",
-                }
-            }
-        )
-            .set_global_opts(
-            title_opts=opts.TitleOpts(title="机构"),
-            xaxis_opts=opts.AxisOpts(axislabel_opts=opts.LabelOpts(rotate=45)),
-        )
-            .dump_options_with_quotes()
-    )
-    return c
+    #    name_list = ['移动用户数（百万户）','手机上网总流量（kTB）' ,'移动语音通话总分钟数（百万分钟）', '有线宽带用户数（百万户）',
+    # '固定电话用户数（百万户）' ,'固定电话本地语音通话总次数（百万次）' ,'固定电话长途总分钟数（百万分钟）', '经营收入（人民币百万元）',
+    # 'test3']
+    df = read_query()
+    name_list = list(df.name.unique())
+    title = name_list[2]
+    data_2018 = Data.objects.filter(year="2018", name=name_list[2]).first()
+    data_2019 = Data.objects.filter(year="2019", name=name_list[2]).first()
 
-
-def year_line():
-    x = [str(i) for i in list(s_data.year_num.values())]
-    y_data = list(s_data.year_data.values())
+    x = ['第一季度', '第二季度', '第三季度', '第四季度']
+    y1 = [data_2018.jidu_1,data_2018.jidu_2,data_2018.jidu_3,data_2018.jidu_4]
+    y2 = [data_2019.jidu_1,data_2019.jidu_2,data_2019.jidu_3,data_2019.jidu_4]
 
     line2 = (
-        Line()
-            .add_xaxis(xaxis_data=x)
-            .add_yaxis(
-            series_name="",
-            y_axis=y_data,
-            symbol="emptyCircle",
-            is_symbol_show=True,
-            label_opts=opts.LabelOpts(is_show=False),
-            areastyle_opts=opts.AreaStyleOpts(opacity=1, color="#C67570"),
+        Line(
+
         )
             .set_global_opts(
             tooltip_opts=opts.TooltipOpts(is_show=False),
+            xaxis_opts=opts.AxisOpts(type_="category"),
             yaxis_opts=opts.AxisOpts(
                 type_="value",
                 axistick_opts=opts.AxisTickOpts(is_show=True),
                 splitline_opts=opts.SplitLineOpts(is_show=True),
             ),
-            xaxis_opts=opts.AxisOpts(type_="category", boundary_gap=False),
+        )
+            .add_xaxis(x)
+            .add_yaxis(
+            series_name="2018年",
+            stack="总量",
+            y_axis= y1,
+            label_opts=opts.LabelOpts(is_show=True),
+        )
+            .add_yaxis(
+            series_name="2019年",
+            stack="总量",
+            y_axis=y2,
+            label_opts=opts.LabelOpts(is_show=True),
+        )
+            .set_global_opts(
+            title_opts=opts.TitleOpts(title=title),
+            legend_opts=opts.LegendOpts(type_="scroll", pos_right="30px", orient="vertical"),
         )
             # 设置 boundary_gap 的时候一定要放在最后一个配置项里, 不然会被覆盖
             .dump_options_with_quotes()
@@ -131,131 +167,259 @@ def year_line():
     return line2
 
 
-def xueke_pie():
-    data1 = list(s_data.xueke_ditc.values())
-    data2 = list(s_data.xueke_nums.values())
+def year_line():
+    #    name_list = ['移动用户数（百万户）','手机上网总流量（kTB）' ,'移动语音通话总分钟数（百万分钟）', '有线宽带用户数（百万户）',
+    # '固定电话用户数（百万户）' ,'固定电话本地语音通话总次数（百万次）' ,'固定电话长途总分钟数（百万分钟）', '经营收入（人民币百万元）',
+    # 'test3']
+    df = read_query()
+    name_list = list(df.name.unique())
+    title = name_list[1]
+    data_2018 = Data.objects.filter(year="2018", name=name_list[1]).first()
+    data_2019 = Data.objects.filter(year="2019", name=name_list[1]).first()
+
+    x = ['第一季度', '第二季度', '第三季度', '第四季度']
+    y1 = [data_2018.jidu_1,data_2018.jidu_2,data_2018.jidu_3,data_2018.jidu_4]
+    y2 = [data_2019.jidu_1,data_2019.jidu_2,data_2019.jidu_3,data_2019.jidu_4]
+
+    line2 = (
+        Line(
+
+        )
+            .set_global_opts(
+            tooltip_opts=opts.TooltipOpts(is_show=False),
+            xaxis_opts=opts.AxisOpts(type_="category"),
+            yaxis_opts=opts.AxisOpts(
+                type_="value",
+                axistick_opts=opts.AxisTickOpts(is_show=True),
+                splitline_opts=opts.SplitLineOpts(is_show=True),
+            ),
+        )
+            .add_xaxis(x)
+            .add_yaxis(
+            series_name="2018年",
+            stack="总量",
+            y_axis= y1,
+            label_opts=opts.LabelOpts(is_show=True),
+        )
+            .add_yaxis(
+            series_name="2019年",
+            stack="总量",
+            y_axis=y2,
+            label_opts=opts.LabelOpts(is_show=True),
+        )
+            .set_global_opts(
+            title_opts=opts.TitleOpts(title=title),
+            legend_opts=opts.LegendOpts(type_="scroll", pos_right="30px", orient="vertical"),
+        )
+            # 设置 boundary_gap 的时候一定要放在最后一个配置项里, 不然会被覆盖
+            .dump_options_with_quotes()
+    )
+    return line2
+
+
+def cishu_pie():
+    #    name_list = ['移动用户数（百万户）','手机上网总流量（kTB）' ,'移动语音通话总分钟数（百万分钟）', '有线宽带用户数（百万户）',
+    # '固定电话用户数（百万户）' ,'固定电话本地语音通话总次数（百万次）' ,'固定电话长途总分钟数（百万分钟）', '经营收入（人民币百万元）',
+    # 'test3']
+    df = read_query()
+    name_list = list(df.name.unique())
+    title = name_list[5]
+    data_2018 = Data.objects.filter(year="2018", name=name_list[5]).first()
+    data_2019 = Data.objects.filter(year="2019", name=name_list[5]).first()
+    # data_2020 = Data.objects.filter(year="2020", name=name_list[5]).first()
+    print(name_list[0])
+    x = [2018, 2019, 2020]
+
+    y1 = [data_2018.jidu_1, data_2018.jidu_2, data_2018.jidu_3,data_2018.jidu_4]
+    y2 = [data_2019.jidu_1, data_2019.jidu_2, data_2019.jidu_3,data_2019.jidu_4]
+
+
+    v = ['第一季度','第二季度','第三季度','第四季度']
     c = (
         Pie()
             .add(
-            "",
-            [
-                list(z)
-                for z in zip(
-                data1,
-                data2,
-            )
-            ],
-            center=["40%", "50%"],
+            "2018年",
+            [list(z) for z in zip(v, y1)],
+            radius=["30%", "75%"],
+            center=["25%", "50%"],
+            rosetype="radius",
+            label_opts=opts.LabelOpts(is_show=True),
+        )
+            .add(
+            "2019年",
+            [list(z) for z in zip(v, y2)],
+            radius=["30%", "75%"],
+            center=["75%", "50%"],
+            rosetype="area",
         )
             .set_global_opts(
-            title_opts=opts.TitleOpts(title="各学科占比"),
-            legend_opts=opts.LegendOpts(type_="scroll", pos_left="80%", orient="vertical"),
+            title_opts=opts.TitleOpts(title=title),
+            legend_opts=opts.LegendOpts(type_="scroll", pos_right="30px", orient="vertical"),
         )
-            .set_series_opts(label_opts=opts.LabelOpts(formatter="{b}: {c}"))
+            .dump_options_with_quotes()
+    )
+    return c
+def minute_pie():
+    #    name_list = ['移动用户数（百万户）','手机上网总流量（kTB）' ,'移动语音通话总分钟数（百万分钟）', '有线宽带用户数（百万户）',
+    # '固定电话用户数（百万户）' ,'固定电话本地语音通话总次数（百万次）' ,'固定电话长途总分钟数（百万分钟）', '经营收入（人民币百万元）',
+    # 'test3']
+    df = read_query()
+    name_list = list(df.name.unique())
+    title = name_list[6]
+    data_2018 = Data.objects.filter(year="2018", name=name_list[6]).first()
+    data_2019 = Data.objects.filter(year="2019", name=name_list[6]).first()
+    # data_2020 = Data.objects.filter(year="2020", name=name_list[5]).first()
+    print(name_list[0])
+    x = [2018, 2019, 2020]
+
+    y1 = [data_2018.jidu_1, data_2018.jidu_2, data_2018.jidu_3,data_2018.jidu_4]
+    y2 = [data_2019.jidu_1, data_2019.jidu_2, data_2018.jidu_3,data_2019.jidu_4]
+
+
+    v = ['第一季度','第二季度','第三季度','第四季度']
+    c = (
+        Pie()
+            .add(
+            "2018年",
+            [list(z) for z in zip(v, y1)],
+            radius=["30%", "75%"],
+            center=["25%", "50%"],
+            label_opts=opts.LabelOpts(is_show=True),
+        )
+            .add(
+            "2019年",
+            [list(z) for z in zip(v, y2)],
+            radius=["30%", "75%"],
+            center=["75%", "50%"],
+        )
+            .set_global_opts(
+            title_opts=opts.TitleOpts(title=title),
+            legend_opts=opts.LegendOpts(type_="scroll", pos_right="30px", orient="vertical"),
+        )
             .dump_options_with_quotes()
     )
     return c
 
-
 def qikan_bar() -> Bar:
-    x = list(reversed((list(s_data.qikan_dict.values()))))
-    y = list(reversed(list(s_data.qikan_nums.values())))
+    df = read_query()
+    name_list = list(df.name.unique())
+    #    name_list = ['移动用户数（百万户）','手机上网总流量（kTB）' ,'移动语音通话总分钟数（百万分钟）', '有线宽带用户数（百万户）',
+    # '固定电话用户数（百万户）' ,'固定电话本地语音通话总次数（百万次）' ,'固定电话长途总分钟数（百万分钟）', '经营收入（人民币百万元）',
+    # 'test3']
+    # jidu1 = df[df['year'] == 2018]['jidu_1']
+    title = name_list[3]
+    data_2018 = Data.objects.filter(year="2018", name=name_list[3]).first()
+    data_2019 = Data.objects.filter(year="2019", name=name_list[3]).first()
+    data_2020 = Data.objects.filter(year="2020", name=name_list[3]).first()
+    print(name_list[0])
+    x = [2018, 2019, 2020]
+
+    y1 = [data_2018.jidu_1, data_2019.jidu_1, data_2020.jidu_1]
+    y2 = [data_2018.jidu_2, data_2019.jidu_2, data_2020.jidu_2]
+    y3 = [data_2018.jidu_3, data_2019.jidu_3, data_2020.jidu_3]
+    y4 = [data_2018.jidu_4, data_2019.jidu_4, data_2020.jidu_4]
+
     c = (
         Bar()
             .add_xaxis(x)
-            .add_yaxis("期刊", y)
-            .reversal_axis()
-            .set_series_opts(label_opts=opts.LabelOpts(position="right"))
-            .set_global_opts(title_opts=opts.TitleOpts(title="期刊数量展示"))
-            .dump_options_with_quotes()
-    )
-    return c
+            .add_yaxis("第一季度", y1)
+            .add_yaxis("第二季度", y2)
+            .add_yaxis("第三季度", y3)
+            .add_yaxis("第四季度", y4)
 
-
-def cat_pie():
-    data1 = s_data.cat
-    data2 = s_data.cat_nums
-    c = (
-        Pie()
-            .add(
-            "",
-            [list(z) for z in zip(data1, data2)],
-            radius=["40%", "55%"],
-            label_opts=opts.LabelOpts(
-                position="outside",
-                formatter="{a|{a}}{abg|}\n{hr|}\n {b|{b}: }{c}  {per|{d}%}  ",
-                background_color="#eee",
-                border_color="#aaa",
-                border_width=1,
-                border_radius=4,
-                rich={
-                    "a": {"color": "#999", "lineHeight": 22, "align": "center"},
-                    "abg": {
-                        "backgroundColor": "#e3e3e3",
-                        "width": "100%",
-                        "align": "right",
-                        "height": 22,
-                        "borderRadius": [4, 4, 0, 0],
-                    },
-                    "hr": {
-                        "borderColor": "#aaa",
-                        "width": "100%",
-                        "borderWidth": 0.5,
-                        "height": 0,
-                    },
-                    "b": {"fontSize": 16, "lineHeight": 33},
-                    "per": {
-                        "color": "#eee",
-                        "backgroundColor": "#334455",
-                        "padding": [2, 4],
-                        "borderRadius": 2,
-                    },
-                },
-            ),
+            .set_global_opts(
+            title_opts=opts.TitleOpts(title=title),
+            toolbox_opts=opts.ToolboxOpts(),
+            legend_opts=opts.LegendOpts(is_show=True),
         )
-            .set_global_opts(title_opts=opts.TitleOpts(title="资源类型展示"))
             .dump_options_with_quotes()
     )
     return c
+
 
 
 def wordshow():
-    data1 = list(s_data.keywords.values())
-    data2 = list(s_data.keywords_nums.values())
+    #    name_list = ['移动用户数（百万户）','手机上网总流量（kTB）' ,'移动语音通话总分钟数（百万分钟）', '有线宽带用户数（百万户）',
+    # '固定电话用户数（百万户）' ,'固定电话本地语音通话总次数（百万次）' ,'固定电话长途总分钟数（百万分钟）', '经营收入（人民币百万元）',
+    # 'test3']
+    df = read_query()
+    name_list = list(df.name.unique())
+    title = name_list[4]
+    data_2018 = Data.objects.filter(year="2018", name=name_list[4]).first()
+    data_2019 = Data.objects.filter(year="2019", name=name_list[4]).first()
 
-    c = (
-        Bar()
-            .add_xaxis(data1)
-            .add_yaxis("关键词", data2)
-            .set_series_opts(label_opts=opts.LabelOpts(position="top"))
-            .set_global_opts(
-            title_opts=opts.TitleOpts(title="词频展示"),
-            xaxis_opts=opts.AxisOpts(axislabel_opts=opts.LabelOpts(rotate=45)),
+    x = ['第一季度', '第二季度', '第三季度', '第四季度']
+    y1 = [data_2018.jidu_1, data_2018.jidu_2, data_2018.jidu_3, data_2018.jidu_4]
+    y2 = [data_2019.jidu_1, data_2019.jidu_2, data_2019.jidu_3, data_2019.jidu_4]
+
+    line2 = (
+        Line(
+
         )
+            .set_global_opts(
+            tooltip_opts=opts.TooltipOpts(is_show=False),
+            xaxis_opts=opts.AxisOpts(type_="category"),
+            yaxis_opts=opts.AxisOpts(
+                type_="value",
+                axistick_opts=opts.AxisTickOpts(is_show=True),
+                splitline_opts=opts.SplitLineOpts(is_show=True),
+            ),
+        )
+            .add_xaxis(x)
+            .add_yaxis(
+            series_name="2018年",
+            stack="总量",
+            y_axis=y1,
+            label_opts=opts.LabelOpts(is_show=True),
+        )
+            .add_yaxis(
+            series_name="2019年",
+            stack="总量",
+            y_axis=y2,
+            label_opts=opts.LabelOpts(is_show=True),
+        )
+            .set_global_opts(
+            title_opts=opts.TitleOpts(title=title),
+            legend_opts=opts.LegendOpts(type_="scroll", pos_right="30px", orient="vertical"),
+        )
+            # 设置 boundary_gap 的时候一定要放在最后一个配置项里, 不然会被覆盖
             .dump_options_with_quotes()
     )
-    return c
+    return line2
 
 
 def relation():
-    nodes = [
-        {"name": "邢蓓蓓", "symbolSize": 10},
-        {"name": "林剑", "symbolSize": 20},
-        {"name": "武敬平", "symbolSize": 30},
-        {"name": "陶锋", "symbolSize": 40},
-        {"name": "宋振峰", "symbolSize": 50},
-        {"name": "胡伟", "symbolSize": 40},
-        {"name": "吴小龙", "symbolSize": 30},
-        {"name": "喻小勇", "symbolSize": 20},
-    ]
-    links = []
-    for i in nodes:
-        for j in nodes:
-            links.append({"source": i.get("name"), "target": j.get("name")})
+    df = read_query()
+    name_list = list(df.name.unique())
+    #    name_list = ['移动用户数（百万户）','手机上网总流量（kTB）' ,'移动语音通话总分钟数（百万分钟）', '有线宽带用户数（百万户）',
+    # '固定电话用户数（百万户）' ,'固定电话本地语音通话总次数（百万次）' ,'固定电话长途总分钟数（百万分钟）', '经营收入（人民币百万元）',
+    # 'test3']
+    # jidu1 = df[df['year'] == 2018]['jidu_1']
+    title = name_list[7]
+    data_2018 = Data.objects.filter(year="2018", name=name_list[7]).first()
+    data_2019 = Data.objects.filter(year="2019", name=name_list[7]).first()
+    data_2020 = Data.objects.filter(year="2020", name=name_list[7]).first()
+    print(name_list[0])
+    x = [2018, 2019, 2020]
+
+    y1 = [data_2018.jidu_1, data_2019.jidu_1, data_2020.jidu_1]
+    y2 = [data_2018.jidu_2, data_2019.jidu_2, data_2020.jidu_2]
+    y3 = [data_2018.jidu_3, data_2019.jidu_3, data_2020.jidu_3]
+    y4 = [data_2018.jidu_4, data_2019.jidu_4, data_2020.jidu_4]
+
     c = (
-        Graph()
-            .add("", nodes, links, repulsion=8000)
-            .set_global_opts(title_opts=opts.TitleOpts(title="关系图"))
+        Bar()
+            .add_xaxis(x)
+            .add_yaxis("第一季度", y1)
+            .add_yaxis("第二季度", y2)
+            .add_yaxis("第三季度", y3)
+            .add_yaxis("第四季度", y4)
+
+            .set_global_opts(
+            title_opts=opts.TitleOpts(title=title),
+            toolbox_opts=opts.ToolboxOpts(),
+            legend_opts=opts.LegendOpts(is_show=True),
+        )
             .dump_options_with_quotes()
     )
     return c
@@ -278,7 +442,7 @@ class YearChartView(APIView):
 
 class XuekeChartView(APIView):
     def get(self, request, *args, **kwargs):
-        return JsonResponse(json.loads(xueke_pie()))
+        return JsonResponse(json.loads(cishu_pie()))
 
 
 class QikanChartView(APIView):
@@ -288,7 +452,7 @@ class QikanChartView(APIView):
 
 class CatChartView(APIView):
     def get(self, request, *args, **kwargs):
-        return JsonResponse(json.loads(cat_pie()))
+        return JsonResponse(json.loads(minute_pie()))
 
 
 class WordChartView(APIView):
@@ -303,25 +467,61 @@ class RelationChartView(APIView):
 @method_decorator([login_required(login_url='/user/login/'),],name='dispatch')
 class ShowView(APIView):
     def get(self, request, *args, **kwargs):
-        documents = Data.objects.all()
-        author_lists = []
-        for d in documents:
-            author_lists.append(d.author)
-        print(author_lists)
         return HttpResponse(content=open("./templates/front/show.html", encoding="utf-8").read())
 
 
-
+@require_POST
 def adddata(request):
-    if request.method == "POST":
-        title = request.POST.get("title")
-        year = request.POST.get('year')
-        nums1 = float(request.POST.get("nums1",0))
-        nums2 = float(request.POST.get("nums2",0))
-        nums3 = float(request.POST.get("nums3",0))
-        nums4 = float(request.POST.get("nums4",0))
-        data = Data(name=title,year=year,jidu_1=nums1,jidu_2=nums2,jidu_3=nums3,jidu_4=nums4)
+    title = request.POST.get("title")
+    year = request.POST.get('year')
+
+    exsited = Data.objects.filter(name=title).first()
+    if not  exsited:
+        nums1 = float(request.POST.get("nums1", 0))
+        nums2 = float(request.POST.get("nums2", 0))
+        nums3 = float(request.POST.get("nums3", 0))
+        nums4 = float(request.POST.get("nums4", 0))
+        data = Data(name=title, year=year, jidu_1=nums1, jidu_2=nums2, jidu_3=nums3, jidu_4=nums4)
         data.save()
         return restful.ok()
+    else:
+        return restful.paramserror(message="该数据名称已存在！")
 
 
+
+
+@require_POST
+def delete_data(request):
+    data_id = request.POST.get('data_id')
+    print("data_id",data_id)
+    Data.objects.filter(pk=data_id).delete()
+    return restful.ok()
+
+
+def test(request):
+    data = Data.objects.filter(year='2018',name='移动用户数（百万户）').first()
+    print(data.name,data.jidu_2)
+    return restful.ok()
+
+
+# class EditNewsView(View):
+#     def get(self,request):
+#         news_id = request.GET.get('news_id')
+#         news = Data.objects.get(pk=news_id)
+#         context = {
+#             'news': news,
+#         }
+#         return render(request,'cms/write_news.html',context=context)
+#
+#     def post(self,request):
+#         title = form.cleaned_data.get('title')
+#         desc = form.cleaned_data.get('desc')
+#         thumbnail = form.cleaned_data.get('thumbnail')
+#         content = form.cleaned_data.get('content')
+#         category_id = form.cleaned_data.get('category')
+#         pk = form.cleaned_data.get("pk")
+#         category = NewsCategory.objects.get(pk=category_id)
+#         News.objects.filter(pk=pk).update(title=title,desc=desc,thumbnail=thumbnail,content=content,category=category)
+#         return restful.ok()
+#         else:
+#             return restful.params_error(message=form.get_errors())

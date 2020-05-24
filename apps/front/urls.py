@@ -17,5 +17,7 @@ urlpatterns = [
     path('word/', views.WordChartView.as_view(), name='word'),
     path('relation/', views.RelationChartView.as_view(), name='relation'),
     path('add/', views.adddata, name='add'),
+    path('del/', views.delete_data, name='del'),
+    path('test/', views.test, name='test'),
 
 ]

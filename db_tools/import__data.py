@@ -9,7 +9,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'zhiwangShow.settings')
 import django
 django.setup()
 
-from apps.front.models import Document
+from apps.front.models import Data
 
 
 df = pd.read_excel('data/test_data.xls',index_col='序号')
@@ -18,7 +18,7 @@ df = pd.read_excel('data/test_data.xls',index_col='序号')
 
 # print(df.head())
 for index in range(df.shape[0]):
-    d = Document()
+    d = Data()
     info = df.iloc[index]
     d.title = info['篇名']
     d.author = info['作者']

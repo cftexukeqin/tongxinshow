@@ -141,20 +141,12 @@ Index.prototype.ListenSearchEvent = function () {
         })
     })
 }
-Index.prototype.ListenUpperSearchBtn = function () {
-    var upperBtn = $("#upper-show");
-    var simpleBox = $('#simple-box');
-    var upperBox = $(".upper-box");
-    upperBtn.click(function (event) {
-        upperBox.show();
-        simpleBox.hide();
-    })
-};
+
 
 Index.prototype.ListenAddEvent = function () {
-    var addBtn = $("#add-data")
+    var addBtn = $("#add-data");
     var titleInput = $("input[name='title']");
-    var yearSelect = $("input[name='year']");
+    var yearSelect = $("select[name='add-year']");
 
     var nums1Input = $("input[name='nums1']");
     var nums2Input = $("input[name='nums2']");
@@ -193,16 +185,95 @@ Index.prototype.ListenAddEvent = function () {
                 'nums4': nums4
             },
             'success': function (result) {
-                window.location.reload()
+                if (result['code'] === 200){
+                    window.location.reload()
+                } else {
+                    window.messageBox.showError(result['message'])
+                }
+            },
+            'fail':function (err) {
+                window.messageBox.showError(err)
             }
         })
     })
+};
+Index.prototype.listenDeleteEvent = function () {
+    var deleteBtns = $(".delete-btn");
+
+    deleteBtns.click(function () {
+        var btn = $(this);
+        var data_id = btn.attr('data-id');
+        xfzalert.alertConfirm({
+            'text': '您是否要删除这条数据吗？',
+            'confirmCallback': function () {
+                xfzajax.post({
+                    'url': '/del/',
+                    'data': {
+                        'data_id': data_id
+                    },
+                    'success': function (result) {
+                        if(result['code'] === 200){
+                            window.location = window.location.href;
+                            // window.location.reload()
+                        }
+                    }
+                });
+            }
+        });
+    });
+};
+
+Index.prototype.listenEditEvent = function(){
+
 }
+
+Index.prototype.listenSubmitEvent = function () {
+    var submitBtn = $("#submit-btn");
+    submitBtn.click(function (event) {
+        event.preventDefault();
+        var btn = $(this);
+        var pk = btn.attr('data-news-id');
+
+        var title = $("input[name='title']").val();
+        var category = $("select[name='category']").val();
+        var desc = $("input[name='desc']").val();
+        var thumbnail = $("input[name='thumbnail']").val();
+        var content = window.ue.getContent();
+
+        var url = '';
+        if(pk){
+            url = '/cms/edit_news/';
+        }else{
+            url = '/cms/write_news/';
+        }
+
+        xfzajax.post({
+            'url': url,
+            'data': {
+                'title': title,
+                'category': category,
+                'desc': desc,
+                'thumbnail': thumbnail,
+                'content': content,
+                'pk': pk
+            },
+            'success': function (result) {
+                if(result['code'] === 200){
+                    xfzalert.alertSuccess('恭喜！新闻发表成功！',function () {
+                        window.location.reload();
+                    });
+                }
+            }
+        });
+    });
+};
 
 Index.prototype.run = function () {
     var self = this;
     self.ListenAddEvent();
-    self.ListenSearchEvent()
+    self.ListenSearchEvent();
+    self.listenDeleteEvent();
+    self.listenSubmitEvent()
 };
 
 

@@ -1,5 +1,5 @@
 body {
-    background-image: url();
+    background-image: url(../img/134816.jpg);
     background-position: center;
     background-size: cover;
     background-repeat: no-repeat;
@@ -8,9 +8,10 @@ body {
 }
 
 .main-container {
+    padding: 50px;
     width: 70%;
     margin: 20px auto;
-    /*background: #2b542c;*/
+    background: white;
 }
 
 /*.title {*/
@@ -34,6 +35,7 @@ select{
 
 }
 .search-box {
+    margin-top: 20px;
     margin-bottom: 30px;
     margin-left: auto;
     margin-right: auto;

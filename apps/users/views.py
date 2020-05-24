@@ -1,14 +1,13 @@
 from django.shortcuts import render, redirect, reverse
 from django.contrib.auth import login, logout, authenticate
-from .forms import LoginForm, SignupForm,UploadImageForm,ModifyPwdForm,UserInfoForm
+from .forms import LoginForm, SignupForm, UploadImageForm, ModifyPwdForm, UserInfoForm
 from django.views.generic.base import View
 from django.contrib.auth.hashers import make_password
-from django.http import HttpResponse,HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect
 
 from .models import UserProfile
 from apps.utils import restful
 from apps.utils.mixin_utils import LoginRequiredMixin
-
 
 
 # Create your views here.
@@ -54,7 +53,6 @@ def regist(request):
             return restful.ok()
         else:
             return restful.paramserror(form.get_error())
-
 
 
 def my_logout(request):
